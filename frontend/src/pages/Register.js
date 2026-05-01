@@ -12,9 +12,15 @@ function Register() {
     try {
       await API.post('/api/auth/register/', form);
       navigate('/login');
-    } catch (err) {
-      setError('Registration failed. Try a different username.');
-    }
+} catch (err) {
+  const data = err.response?.data;
+  if (data) {
+    const messages = Object.entries(data).map(([k, v]) => `${k}: ${v}`).join(' | ');
+    setError(messages);
+  } else {
+    setError('Registration failed. Try a different username.');
+  }
+}
   };
 
   return (
