@@ -124,6 +124,14 @@ class IssueViewSet(viewsets.ModelViewSet):
             estimated_completion_days=request.data.get('estimated_completion_days'),
             inspection_date=request.data.get('inspection_date'),
         )
+        if issue.reporter:
+            Notification.objects.create(
+                user=issue.reporter,
+                issue=issue,
+                channel='app',
+                message=f'Your issue "{issue.title}" status changed from {old_status} to {new_status}.',
+                is_sent=True,
+            )
         return Response(IssueDetailSerializer(issue, context={'request': request}).data)
 
     @action(detail=False, methods=['get'])

@@ -183,6 +183,7 @@ class Notification(models.Model):
     channel = models.CharField(max_length=10, choices=CHANNEL_CHOICES)
     message = models.TextField()
     is_sent = models.BooleanField(default=False)
+    is_read = models.BooleanField(default=False)    # ← ADD THIS LINE
     sent_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 

@@ -5,6 +5,7 @@ import Dashboard from './pages/Dashboard';
 import AuthorityDashboard from './pages/AuthorityDashboard';
 import AdminDashboard from './pages/AdminDashboard';
 import MapPage from './pages/MapPage';
+import ProfilePage from './pages/ProfilePage';
 
 function PrivateRoute({ children }) {
   const token = localStorage.getItem('access_token');
@@ -24,6 +25,7 @@ function App() {
         <Route path="/authority" element={<PrivateRoute><AuthorityDashboard /></PrivateRoute>} />
         <Route path="/admin-panel" element={<PrivateRoute><AdminDashboard /></PrivateRoute>} />
         <Route path="/map" element={<PrivateRoute><MapPage /></PrivateRoute>} />
+        <Route path="/profile" element={<PrivateRoute><ProfilePage /></PrivateRoute>} />
       </Routes>
     </BrowserRouter>
   );
