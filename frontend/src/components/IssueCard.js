@@ -56,7 +56,18 @@ function IssueCard({ issue, index, canUpdateStatus, onVote, onStatusUpdate }) {
 
       {/* Address */}
       <p style={{ margin: '0 0 10px', fontSize: 13, color: '#475569' }}>{issue.address}</p>
-
+{/* Issue image */}
+{issue.image && (
+  <img
+    src={issue.image.startsWith('http') ? issue.image : `http://127.0.0.1:8000${issue.image}`}
+    alt="Issue"
+    style={{ width: '100%', maxHeight: 220, objectFit: 'cover', borderRadius: 8, marginBottom: 10, border: '0.5px solid #E2E8F0', cursor: 'pointer' }}
+    onClick={() => {
+      const url = issue.image.startsWith('http') ? issue.image : `http://127.0.0.1:8000${issue.image}`;
+      window.open(url, '_blank');
+    }}
+  />
+)}
       {/* Footer */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>

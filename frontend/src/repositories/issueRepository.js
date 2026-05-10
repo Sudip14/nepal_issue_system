@@ -1,12 +1,14 @@
 import API from '../api/axios';
 
 const issueRepository = {
-  getAll: (filters = {}) => {
-    let url = '/api/issues/?';
-    if (filters.category && filters.category !== 'all') url += `category=${filters.category}&`;
-    if (filters.status && filters.status !== 'all') url += `status=${filters.status}&`;
-    return API.get(url);
-  },
+getAll: (filters = {}) => {
+  let url = '/api/issues/?';
+  if (filters.category && filters.category !== 'all') url += `category=${filters.category}&`;
+  if (filters.status && filters.status !== 'all') url += `status=${filters.status}&`;
+  if (filters.search && filters.search.trim() !== '') url += `search=${encodeURIComponent(filters.search)}&`;
+  if (filters.ward && filters.ward !== 'all') url += `ward=${filters.ward}&`;
+  return API.get(url);
+},
 
   create: (data) =>
     API.post('/api/issues/', data),

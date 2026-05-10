@@ -12,10 +12,10 @@ L.Icon.Default.mergeOptions({
 const SEV_COLORS = { 1:'#6B7280', 2:'#D97706', 3:'#EF4444', 4:'#DC2626' };
 const CAT_ICONS  = { road:'🛣', water:'💧', power:'⚡', waste:'🗑', drainage:'🌊', sanitation:'🚿', other:'📌' };
 
-function IssueMap({ issues }) {
-  const mapRef    = useRef(null);
-  const mapObj    = useRef(null);
-  const layerRef  = useRef(null);
+function IssueMap({ issues, selectedWard }) {
+  const mapRef   = useRef(null);
+  const mapObj   = useRef(null);
+  const layerRef = useRef(null);
 
   // Initialise map once
   useEffect(() => {
@@ -37,8 +37,12 @@ function IssueMap({ issues }) {
       const lng = parseFloat(issue.longitude);
       if (!lat || !lng) return;
 
+      // Highlight markers from selected ward
+      const isHighlighted = selectedWard === 'all' || String(issue.ward_number) === String(selectedWard);
+      const opacity = isHighlighted ? 1 : 0.25;
+
       const icon = L.divIcon({
-        html: `<div style="background:${SEV_COLORS[issue.severity]||'#6B7280'};color:#fff;border-radius:50%;width:34px;height:34px;display:flex;align-items:center;justify-content:center;font-size:16px;border:2px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,0.3)">${CAT_ICONS[issue.category]||'📌'}</div>`,
+        html: `<div style="background:${SEV_COLORS[issue.severity]||'#6B7280'};color:#fff;border-radius:50%;width:34px;height:34px;display:flex;align-items:center;justify-content:center;font-size:16px;border:2px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,0.3);opacity:${opacity}">${CAT_ICONS[issue.category]||'📌'}</div>`,
         className: '',
         iconSize: [34, 34],
         iconAnchor: [17, 17],
@@ -50,6 +54,7 @@ function IssueMap({ issues }) {
           <div style="min-width:190px;font-family:sans-serif">
             <p style="font-weight:600;margin:0 0 6px;font-size:14px">${CAT_ICONS[issue.category]||'📌'} ${issue.title}</p>
             <p style="margin:0 0 3px;font-size:12px;color:#475569">📍 ${issue.address}</p>
+            <p style="margin:0 0 3px;font-size:12px;color:#475569">🏘 Ward: ${issue.ward_number}</p>
             <p style="margin:0 0 3px;font-size:12px;color:#475569">👥 ${issue.affected_people_count} affected</p>
             <p style="margin:0 0 3px;font-size:12px">🏷 Status: <b>${issue.status?.replace('_',' ')}</b></p>
             <p style="margin:0 0 3px;font-size:12px;color:#1D4ED8">⭐ Priority: ${issue.priority_score?.toFixed(1)}</p>
@@ -61,11 +66,11 @@ function IssueMap({ issues }) {
         radius: issue.affected_radius_meters || 150,
         color: SEV_COLORS[issue.severity] || '#6B7280',
         fillColor: SEV_COLORS[issue.severity] || '#6B7280',
-        fillOpacity: 0.12,
+        fillOpacity: isHighlighted ? 0.12 : 0.03,
         weight: 1,
       }).addTo(layerRef.current);
     });
-  }, [issues]);
+  }, [issues, selectedWard]);
 
   return (
     <div
