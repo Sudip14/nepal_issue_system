@@ -18,6 +18,7 @@ function AdminDashboard() {
   const [stats, setStats] = useState(null);
   const [heatmap, setHeatmap] = useState([]);
   const [username, setUsername] = useState('');
+  const [user, setUser] = useState(null);
   const [msg, setMsg] = useState('');
   const [activeTab, setActiveTab] = useState('overview');
   const navigate = useNavigate();
@@ -30,7 +31,8 @@ function AdminDashboard() {
     try {
       const me = await authController.getMe();
       setUsername(me.username);
-      if (me.user_type !== 'admin') navigate('/dashboard');
+      if (me.user_type !== 'admin' && me.user_type !== 'super_admin') navigate('/dashboard');
+      setUser(me);
 
       const [s, h, i] = await Promise.all([
         dashboardController.fetchStats(),
@@ -42,6 +44,7 @@ function AdminDashboard() {
       setIssues(i);
     } catch { navigate('/login'); }
   };
+  
 
   const handleStatusUpdate = async (id, newStatus) => {
     try {
@@ -273,7 +276,24 @@ function AdminDashboard() {
             </div>
           </div>
         )}
-
+{/* District banner */}
+{user && (
+  <div style={{ 
+    background: user.user_type === 'super_admin' ? '#7C3AED' : '#1D4ED8', 
+    color: '#fff', padding: '10px 16px', borderRadius: 10, 
+    marginBottom: 20, fontSize: 13, display: 'flex', 
+    justifyContent: 'space-between', alignItems: 'center' 
+  }}>
+    <span>
+      {user.user_type === 'super_admin' 
+        ? '👑 Super Admin — Viewing ALL districts' 
+        : `🏛 District Admin — Managing: ${user.district}`}
+    </span>
+    <span style={{ opacity: 0.85 }}>
+      {stats?.total || 0} total issues
+    </span>
+  </div>
+)}
       </div>
     </div>
   );

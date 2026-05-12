@@ -25,6 +25,10 @@ class IsAuthorityOrAdmin(permissions.BasePermission):
     def has_permission(self, request, view):
         return request.user.is_authenticated and request.user.user_type in ['authority', 'admin']
 
+class IsAuthorityOrAdmin(permissions.BasePermission):
+    def has_permission(self, request, view):
+        return request.user.is_authenticated and request.user.user_type in ['authority', 'admin', 'super_admin']
+
 
 # ── Auth ──────────────────────────────────────────────────────────────────────
 
@@ -57,6 +61,11 @@ class IssueViewSet(viewsets.ModelViewSet):
             'reporter', 'assigned_department'
         ).prefetch_related('votes', 'updates')
 
+        # District admin can only see their district
+        user = self.request.user
+        if user.is_authenticated and user.user_type == 'admin':
+            qs = qs.filter(district=user.district)
+
         category = self.request.query_params.get('category')
         status_f = self.request.query_params.get('status')
         severity = self.request.query_params.get('severity')
@@ -84,7 +93,10 @@ class IssueViewSet(viewsets.ModelViewSet):
         return IssueListSerializer
 
     def perform_create(self, serializer):
-        issue = serializer.save(reporter=self.request.user)
+        issue = serializer.save(
+            reporter=self.request.user,
+            district=self.request.user.district  # auto-tag district
+        )
         self._auto_assign_department(issue)
         issue.calculate_priority_score()
 
@@ -151,6 +163,8 @@ class IssueViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=['get'])
     def stats(self, request):
         qs = Issue.objects.filter(is_spam=False)
+        if request.user.is_authenticated and request.user.user_type == 'admin':
+            qs = qs.filter(district=request.user.district)
         return Response({
             'total': qs.count(),
             'pending': qs.filter(status='pending').count(),
@@ -164,7 +178,10 @@ class IssueViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=['get'])
     def heatmap(self, request):
-        data = Issue.objects.filter(is_spam=False).values('ward_number').annotate(
+        qs = Issue.objects.filter(is_spam=False)
+        if request.user.is_authenticated and request.user.user_type == 'admin':
+            qs = qs.filter(district=request.user.district)
+        data = qs.values('ward_number').annotate(
             total=Count('id'),
             pending=Count('id', filter=Q(status='pending')),
             resolved=Count('id', filter=Q(status='resolved')),
@@ -222,7 +239,7 @@ class ExportExcelView(generics.GenericAPIView):
                 ws.cell(row=row, column=6, value=str(issue.ward_number))
                 ws.cell(row=row, column=7, value=issue.address)
                 ws.cell(row=row, column=8, value=f"{issue.reporter.first_name} {issue.reporter.last_name}".strip() if issue.reporter else '')
-                ws.cell(row=row, column=9, value=issue.vote_count)
+                ws.cell(row=row, column=9, value=issue.votes.count())
                 ws.cell(row=row, column=10, value=round(float(issue.priority_score or 0), 2))
                 ws.cell(row=row, column=11, value=issue.created_at.strftime('%Y-%m-%d %H:%M') if issue.created_at else '')
 
@@ -269,7 +286,7 @@ class ExportPDFView(generics.GenericAPIView):
                     issue.status.replace('_', ' '),
                     str(issue.ward_number),
                     issue.get_severity_display(),
-                    str(issue.vote_count),
+                    str(issue.votes.count()),
                     str(round(float(issue.priority_score or 0), 1)),
                     issue.created_at.strftime('%Y-%m-%d') if issue.created_at else '',
                 ])

@@ -9,6 +9,7 @@ class User(AbstractUser):
         ('citizen', 'Citizen'),
         ('authority', 'Authority'),
         ('admin', 'Admin'),
+        ('super_admin', 'Super Admin'),
     ]
     user_type = models.CharField(max_length=20, choices=USER_TYPE_CHOICES, default='citizen')
     phone_number = models.CharField(max_length=15, blank=True)

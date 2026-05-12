@@ -7,18 +7,30 @@ function Login() {
   const [error, setError] = useState('');
   const navigate = useNavigate();
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    try {
-      const res = await API.post('/api/token/', form);
-      localStorage.setItem('access_token', res.data.access);
-      localStorage.setItem('refresh_token', res.data.refresh);
-      navigate('/dashboard');
-    } catch (err) {
-      setError('Invalid username or password!');
-    }
-  };
+const handleSubmit = async (e) => {
+  e.preventDefault();
+  try {
+    const res = await API.post('/api/token/', form);
+    localStorage.setItem('access_token', res.data.access);
+    localStorage.setItem('refresh_token', res.data.refresh);
 
+    // Get user info to check role
+    const userRes = await API.get('/api/auth/me/', {
+      headers: { Authorization: `Bearer ${res.data.access}` }
+    });
+    const userType = userRes.data.user_type;
+
+    if (userType === 'admin' || userType === 'super_admin') {
+      navigate('/admin-panel');
+    } else if (userType === 'authority') {
+      navigate('/authority');
+    } else {
+      navigate('/dashboard');
+    }
+  } catch (err) {
+    setError('Invalid username or password!');
+  }
+};
   return (
     <div style={styles.container}>
       <div style={styles.card}>
