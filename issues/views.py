@@ -5,6 +5,7 @@ from reportlab.lib import colors
 from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
 from reportlab.lib.styles import getSampleStyleSheet
 from django.http import HttpResponse
+from django.shortcuts import get_object_or_404
 import io
 from rest_framework import viewsets, permissions, status, generics
 from rest_framework.decorators import action
@@ -13,17 +14,14 @@ from rest_framework.filters import SearchFilter, OrderingFilter
 from django_filters.rest_framework import DjangoFilterBackend
 from django.db.models import Count, Q
 from django.utils import timezone
-from .models import User, Department, Issue, Vote, IssueUpdate, Notification
+from .models import User, Department, Issue, Vote, IssueUpdate, Notification, Comment, IssueImage
 from .serializers import (
     RegisterSerializer, UserSerializer, DepartmentSerializer,
     IssueListSerializer, IssueDetailSerializer, IssueCreateSerializer,
-    IssueUpdateSerializer, NotificationSerializer
+    IssueUpdateSerializer, NotificationSerializer,
+    CommentSerializer, CommentCreateSerializer, IssueImageSerializer
 )
 
-
-class IsAuthorityOrAdmin(permissions.BasePermission):
-    def has_permission(self, request, view):
-        return request.user.is_authenticated and request.user.user_type in ['authority', 'admin']
 
 class IsAuthorityOrAdmin(permissions.BasePermission):
     def has_permission(self, request, view):
@@ -59,9 +57,8 @@ class IssueViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         qs = Issue.objects.filter(is_spam=False).select_related(
             'reporter', 'assigned_department'
-        ).prefetch_related('votes', 'updates')
+        ).prefetch_related('votes', 'updates', 'comments', 'images')
 
-        # District admin can only see their district
         user = self.request.user
         if user.is_authenticated and user.user_type == 'admin':
             qs = qs.filter(district=user.district)
@@ -95,10 +92,19 @@ class IssueViewSet(viewsets.ModelViewSet):
     def perform_create(self, serializer):
         issue = serializer.save(
             reporter=self.request.user,
-            district=self.request.user.district  # auto-tag district
+            district=self.request.user.district
         )
         self._auto_assign_department(issue)
         issue.calculate_priority_score()
+
+        # 🆕 HANDLE MULTIPLE IMAGES
+        images = self.request.FILES.getlist('images')
+        for index, image in enumerate(images[:5]):  # Max 5 images
+            IssueImage.objects.create(
+                issue=issue,
+                image=image,
+                order=index
+            )
 
     def _auto_assign_department(self, issue):
         category_map = {
@@ -187,6 +193,89 @@ class IssueViewSet(viewsets.ModelViewSet):
             resolved=Count('id', filter=Q(status='resolved')),
         ).order_by('ward_number')
         return Response(list(data))
+
+    # ═══════════════════════════════════════════════════════════════════
+    # 🆕 IMAGE GALLERY ENDPOINTS
+    # ═══════════════════════════════════════════════════════════════════
+
+    @action(detail=True, methods=['get'], permission_classes=[permissions.AllowAny])
+    def gallery(self, request, pk=None):
+        """GET /api/issues/{id}/gallery/ — List all images for an issue"""
+        issue = self.get_object()
+        images = issue.images.all().order_by('order')
+        return Response(IssueImageSerializer(images, many=True).data)
+
+    @action(detail=True, methods=['post'], permission_classes=[permissions.IsAuthenticated])
+    def add_image(self, request, pk=None):
+        """POST /api/issues/{id}/add_image/ — Add image to existing issue"""
+        issue = self.get_object()
+
+        if issue.images.count() >= 5:
+            return Response({'error': 'Maximum 5 images allowed'}, status=400)
+
+        image = request.FILES.get('image')
+        if not image:
+            return Response({'error': 'No image provided'}, status=400)
+
+        issue_image = IssueImage.objects.create(
+            issue=issue,
+            image=image,
+            caption=request.data.get('caption', ''),
+            order=issue.images.count()
+        )
+        return Response(IssueImageSerializer(issue_image).data, status=201)
+
+    # ═══════════════════════════════════════════════════════════════════
+    # 🆕 COMMENT ACTIONS
+    # ═══════════════════════════════════════════════════════════════════
+
+    @action(detail=True, methods=['get'], permission_classes=[permissions.AllowAny])
+    def comments(self, request, pk=None):
+        issue = self.get_object()
+        top_comments = Comment.objects.filter(
+            issue=issue, parent=None, is_deleted=False
+        ).order_by('-created_at')
+
+        def build_tree(c):
+            data = CommentSerializer(c).data
+            replies = Comment.objects.filter(parent=c, is_deleted=False).order_by('created_at')
+            data['replies'] = [build_tree(r) for r in replies]
+            return data
+
+        return Response([build_tree(c) for c in top_comments])
+
+    @action(detail=True, methods=['post'], permission_classes=[permissions.IsAuthenticatedOrReadOnly])
+    def add_comment(self, request, pk=None):
+        issue = self.get_object()
+
+        serializer = CommentCreateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        content = serializer.validated_data['content']
+        parent_id = serializer.validated_data.get('parent_id')
+
+        parent = None
+        if parent_id:
+            parent = get_object_or_404(Comment, id=parent_id, issue=issue)
+
+        comment = Comment.objects.create(
+            issue=issue,
+            parent=parent,
+            user=request.user if request.user.is_authenticated else None,
+            user_name=request.user.get_full_name() or request.user.username if request.user.is_authenticated else 'Anonymous',
+            user_role=request.user.user_type if request.user.is_authenticated else 'guest',
+            content=content
+        )
+
+        if issue.reporter and issue.reporter != request.user:
+            Notification.objects.create(
+                user=issue.reporter,
+                issue=issue,
+                channel='app',
+                message=f"New comment on your issue: {issue.title[:50]}...",
+            )
+
+        return Response(CommentSerializer(comment).data, status=status.HTTP_201_CREATED)
 
 
 # ── Departments ───────────────────────────────────────────────────────────────

@@ -218,6 +218,7 @@ const token = localStorage.getItem('access_token');
               canUpdateStatus={false}
               onVote={handleVote}
               onStatusUpdate={() => {}}
+              currentUser={user}  // 🆕 PASS USER TO ISSUE CARD
             />
           ))}
         </div>

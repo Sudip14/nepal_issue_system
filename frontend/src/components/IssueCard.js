@@ -1,4 +1,6 @@
+import { useState } from 'react';
 import Badge from './Badge';
+import CommentSection from './CommentSection';
 
 const CAT_COLORS = {
   road: { bg: '#FEF3C7', color: '#92400E', label: '🛣 Road' },
@@ -22,9 +24,18 @@ const STATUS_COLORS = {
 const SEV_LABELS = { 1: 'Low', 2: 'Medium', 3: 'High', 4: 'Critical' };
 const SEV_COLORS = { 1: '#6B7280', 2: '#D97706', 3: '#EF4444', 4: '#7C2D12' };
 
-function IssueCard({ issue, index, canUpdateStatus, onVote, onStatusUpdate }) {
+function IssueCard({ issue, index, canUpdateStatus, onVote, onStatusUpdate, currentUser }) {
+  const [showComments, setShowComments] = useState(false);
+  const [showGallery, setShowGallery] = useState(false);  // 🆕
   const cat = CAT_COLORS[issue.category] || CAT_COLORS.other;
   const sta = STATUS_COLORS[issue.status] || STATUS_COLORS.pending;
+
+  const commentCount = issue.comment_count || 0;
+  const imageCount = issue.image_count || 0;  // 🆕
+
+  // 🆕 Get all images (from gallery array or single image)
+  const allImages = issue.gallery || issue.images || [];
+  const hasImages = allImages.length > 0 || issue.image;
 
   return (
     <div style={{ background: '#fff', borderRadius: 12, padding: '1rem 1.25rem', border: '0.5px solid #E2E8F0' }}>
@@ -56,18 +67,87 @@ function IssueCard({ issue, index, canUpdateStatus, onVote, onStatusUpdate }) {
 
       {/* Address */}
       <p style={{ margin: '0 0 10px', fontSize: 13, color: '#475569' }}>{issue.address}</p>
-{/* Issue image */}
-{issue.image && (
-  <img
-    src={issue.image.startsWith('http') ? issue.image : `http://127.0.0.1:8000${issue.image}`}
-    alt="Issue"
-    style={{ width: '100%', maxHeight: 220, objectFit: 'cover', borderRadius: 8, marginBottom: 10, border: '0.5px solid #E2E8F0', cursor: 'pointer' }}
-    onClick={() => {
-      const url = issue.image.startsWith('http') ? issue.image : `http://127.0.0.1:8000${issue.image}`;
-      window.open(url, '_blank');
-    }}
-  />
-)}
+
+      {/* 🆕 IMAGE GALLERY PREVIEW */}
+      {hasImages && (
+        <div style={{ marginBottom: 10 }}>
+          <div 
+            style={{ 
+              display: 'grid', 
+              gridTemplateColumns: `repeat(${Math.min(allImages.length || 1, 4)}, 1fr)`,
+              gap: 4,
+              borderRadius: 8,
+              overflow: 'hidden',
+              cursor: 'pointer'
+            }}
+            onClick={() => setShowGallery(!showGallery)}
+          >
+            {/* Show first image or gallery images */}
+            {allImages.length > 0 ? (
+              allImages.slice(0, 4).map((img, idx) => (
+                <div key={idx} style={{ position: 'relative', height: 120 }}>
+                  <img
+                    src={img.image_url || img.image}
+                    alt={`Issue ${idx + 1}`}
+                    style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                  />
+                  {idx === 3 && allImages.length > 4 && (
+                    <div style={{
+                      position: 'absolute',
+                      inset: 0,
+                      background: 'rgba(0,0,0,0.6)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      color: '#fff',
+                      fontSize: 20,
+                      fontWeight: 700
+                    }}>
+                      +{allImages.length - 4}
+                    </div>
+                  )}
+                </div>
+              ))
+            ) : issue.image ? (
+              <img
+                src={issue.image.startsWith('http') ? issue.image : `http://127.0.0.1:8000${issue.image}`}
+                alt="Issue"
+                style={{ width: '100%', maxHeight: 220, objectFit: 'cover', borderRadius: 8 }}
+              />
+            ) : null}
+          </div>
+
+          {/* 🆕 EXPANDED GALLERY */}
+          {showGallery && allImages.length > 0 && (
+            <div style={{ 
+              marginTop: 8, 
+              padding: 12, 
+              background: '#F8FAFC', 
+              borderRadius: 8,
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))',
+              gap: 8
+            }}>
+              {allImages.map((img, idx) => (
+                <div key={idx} style={{ borderRadius: 8, overflow: 'hidden' }}>
+                  <img
+                    src={img.image_url || img.image}
+                    alt={`Gallery ${idx + 1}`}
+                    style={{ width: '100%', height: 150, objectFit: 'cover', cursor: 'pointer' }}
+                    onClick={() => window.open(img.image_url || img.image, '_blank')}
+                  />
+                  {img.caption && (
+                    <p style={{ margin: '4px 0 0', fontSize: 11, color: '#64748B', textAlign: 'center' }}>
+                      {img.caption}
+                    </p>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Footer */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
@@ -76,6 +156,41 @@ function IssueCard({ issue, index, canUpdateStatus, onVote, onStatusUpdate }) {
           <span style={{ fontSize: 12, color: '#64748B' }}>by {issue.reporter_name}</span>
         </div>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          {/* 🆕 IMAGE COUNT BUTTON */}
+          {hasImages && (
+            <button
+              onClick={() => setShowGallery(!showGallery)}
+              style={{ 
+                background: showGallery ? '#059669' : '#D1FAE5', 
+                color: showGallery ? '#fff' : '#065F46', 
+                border: '1px solid #059669', 
+                borderRadius: 8, 
+                padding: '4px 14px', 
+                cursor: 'pointer', 
+                fontSize: 13, 
+                fontWeight: 500 
+              }}
+            >
+              🖼️ {imageCount || 1}
+            </button>
+          )}
+
+          <button
+            onClick={() => setShowComments(!showComments)}
+            style={{ 
+              background: showComments ? '#1D4ED8' : '#F0F5FF', 
+              color: showComments ? '#fff' : '#1D4ED8', 
+              border: '1px solid #1D4ED8', 
+              borderRadius: 8, 
+              padding: '4px 14px', 
+              cursor: 'pointer', 
+              fontSize: 13, 
+              fontWeight: 500 
+            }}
+          >
+            💬 {commentCount}
+          </button>
+
           {canUpdateStatus && (
             <select
               value={issue.status}
@@ -98,6 +213,13 @@ function IssueCard({ issue, index, canUpdateStatus, onVote, onStatusUpdate }) {
           </button>
         </div>
       </div>
+
+      {/* COMMENTS SECTION */}
+      {showComments && (
+        <div style={{ marginTop: 16, borderTop: '1px solid #E2E8F0', paddingTop: 16 }}>
+          <CommentSection issueId={issue.id} currentUser={currentUser} />
+        </div>
+      )}
     </div>
   );
 }

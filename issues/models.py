@@ -184,9 +184,60 @@ class Notification(models.Model):
     channel = models.CharField(max_length=10, choices=CHANNEL_CHOICES)
     message = models.TextField()
     is_sent = models.BooleanField(default=False)
-    is_read = models.BooleanField(default=False)    # ← ADD THIS LINE
+    is_read = models.BooleanField(default=False)
     sent_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
         db_table = 'notifications'
+
+
+# ═══════════════════════════════════════════════════════════════
+# 🆕 COMMENT MODEL
+# ═══════════════════════════════════════════════════════════════
+
+class Comment(models.Model):
+    issue = models.ForeignKey(Issue, on_delete=models.CASCADE, related_name='comments')
+    parent = models.ForeignKey('self', on_delete=models.CASCADE, related_name='replies', null=True, blank=True)
+    user = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='issue_comments')
+    user_name = models.CharField(max_length=100, default='Anonymous')
+    user_role = models.CharField(max_length=20, default='guest', choices=[
+        ('guest', 'Guest'), ('citizen', 'Citizen'), ('authority', 'Authority'),
+        ('admin', 'Admin'), ('super_admin', 'Super Admin'),
+    ])
+    content = models.TextField(max_length=2000)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    is_deleted = models.BooleanField(default=False)
+
+    class Meta:
+        db_table = 'comments'
+        ordering = ['-created_at']
+        indexes = [models.Index(fields=['issue', 'parent', 'created_at'])]
+
+    def __str__(self):
+        return f"Comment by {self.user_name} on Issue #{self.issue_id}"
+
+    @property
+    def reply_count(self):
+        return self.replies.filter(is_deleted=False).count()
+
+
+# ═══════════════════════════════════════════════════════════════
+# 🆕 ISSUE IMAGE MODEL — For multiple images per issue
+# ═══════════════════════════════════════════════════════════════
+
+class IssueImage(models.Model):
+    """Multiple images per issue"""
+    issue = models.ForeignKey(Issue, on_delete=models.CASCADE, related_name='images')
+    image = models.ImageField(upload_to='issues/gallery/')
+    caption = models.CharField(max_length=200, blank=True)
+    uploaded_at = models.DateTimeField(auto_now_add=True)
+    order = models.IntegerField(default=0)
+
+    class Meta:
+        db_table = 'issue_images'
+        ordering = ['order', 'uploaded_at']
+
+    def __str__(self):
+        return f"Image #{self.id} for Issue #{self.issue_id}"
